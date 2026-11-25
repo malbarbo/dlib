@@ -368,14 +368,14 @@ macro_rules! dlopen_external_library(
         impl $structname {
             pub unsafe fn open(_name: &str) -> Result<$structname, $crate::DlError> {
                 extern "C" {
-                    $($( static $sname: $stype; )+)*
-                    $($( fn $fname($(_: $farg),*) -> $fret; )+)*
-                    $($( fn $vname($(_: $vargs),+ , ...) -> $vret; )+)*
+                    $($( $(#[$sattr])* static $sname: $stype; )+)*
+                    $($( $(#[$fattr])* fn $fname($(_: $farg),*) -> $fret; )+)*
+                    $($( $(#[$vattr])* fn $vname($(_: $vargs),+ , ...) -> $vret; )+)*
                 }
                 Ok($structname {
-                    $($( $sname: &*::std::ptr::addr_of!($sname), )+)*
-                    $($( $fname: $fname, )+)*
-                    $($( $vname: $vname, )+)*
+                    $($( $(#[$sattr])* $sname: &*::std::ptr::addr_of!($sname), )+)*
+                    $($( $(#[$fattr])* $fname: $fname, )+)*
+                    $($( $(#[$vattr])* $vname: $vname, )+)*
                 })
             }
         }
