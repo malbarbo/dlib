@@ -343,16 +343,61 @@ macro_rules! dlopen_external_library(
         }
     }
     );
+    // With `--cfg no_dlopen`, the struct holds the functions of a library
+    // linked into the binary, for a static binary that has no dlopen.
+    (__linked, $structname: ident,
+        $(statics: $($(#[$sattr:meta])* $sname: ident: $stype: ty),+,)|*
+        $(functions: $($(#[$fattr:meta])* fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
+        $(varargs: $($(#[$vattr:meta])* fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
+    ) => (
+        pub struct $structname {
+            $($(
+                $(#[$sattr])*
+                pub $sname: &'static $stype,
+            )+)*
+            $($(
+                $(#[$fattr])*
+                pub $fname: unsafe extern "C" fn($($farg),*) -> $fret,
+            )+)*
+            $($(
+                $(#[$vattr])*
+                pub $vname: unsafe extern "C" fn($($vargs),+ , ...) -> $vret,
+            )+)*
+        }
+
+        impl $structname {
+            pub unsafe fn open(_name: &str) -> Result<$structname, $crate::DlError> {
+                extern "C" {
+                    $($( static $sname: $stype; )+)*
+                    $($( fn $fname($(_: $farg),*) -> $fret; )+)*
+                    $($( fn $vname($(_: $vargs),+ , ...) -> $vret; )+)*
+                }
+                Ok($structname {
+                    $($( $sname: &*::std::ptr::addr_of!($sname), )+)*
+                    $($( $fname: $fname, )+)*
+                    $($( $vname: $vname, )+)*
+                })
+            }
+        }
+    );
     ($structname: ident,
         $(statics: $($(#[$sattr:meta])* $sname: ident: $stype: ty),+,)|*
         $(functions: $($(#[$fattr:meta])* fn $fname: ident($($farg: ty),*) -> $fret:ty),+,)|*
         $(varargs: $($(#[$vattr:meta])* fn $vname: ident($($vargs: ty),+) -> $vret: ty),+,)|*
     ) => (
+        #[cfg(no_dlopen)]
+        $crate::dlopen_external_library!(__linked,
+            $structname, $(statics: $($(#[$sattr])* $sname: $stype),+,)|*
+            $(functions: $($(#[$fattr])* fn $fname($($farg),*) -> $fret),+,)|*
+            $(varargs: $($(#[$vattr])* fn $vname($($vargs),+) -> $vret),+,)|*
+        );
+        #[cfg(not(no_dlopen))]
         $crate::dlopen_external_library!(__struct,
             $structname, $(statics: $($(#[$sattr])* $sname: $stype),+,)|*
             $(functions: $($(#[$fattr])* fn $fname($($farg),*) -> $fret),+,)|*
             $(varargs: $($(#[$vattr])* fn $vname($($vargs),+) -> $vret),+,)|*
         );
+        #[cfg(not(no_dlopen))]
         $crate::dlopen_external_library!(__impl,
             $structname, $(statics: $($(#[$sattr])* $sname: $stype),+,)|*
             $(functions: $($(#[$fattr])* fn $fname($($farg),*) -> $fret),+,)|*
